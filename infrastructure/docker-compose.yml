@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # Layanan MySQL Database
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      # Variabel ini WAJIB diisi melalui file .env
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    ports:
+      - '3306:3306'
+    command:
+      # Perintah untuk memastikan kompatibilitas dan konektivitas
+      --default-authentication-plugin=mysql_native_password
+    networks:
+      - shared-network
+    healthcheck:
+      # Memeriksa apakah server MySQL siap menerima koneksi
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Layanan PostgreSQL Database dengan pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg15  # Changed to pgvector-enabled image
+    restart: unless-stopped
+    environment:
+      # Variabel ini WAJIB diisi melalui file .env
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    ports:
+      - '5432:5432'
+    command:
+      # Memastikan postgres mendengarkan koneksi dari mana saja di dalam network
+      -c listen_addresses='*'
+    networks:
+      - shared-network
+    healthcheck:
+      # Memeriksa apakah server PostgreSQL siap dengan user default
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Layanan Redis Cache
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      # Memastikan redis berjalan dengan password
+      --requirepass ${REDIS_PASSWORD}
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - shared-network
+    healthcheck:
+      # Memeriksa apakah server Redis merespons dengan benar
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PgAdmin untuk manajemen PostgreSQL
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - '8080:80'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - shared-network
+    depends_on:
+      postgres:
+        # Menunggu sampai layanan 'postgres' statusnya 'healthy'
+        condition: service_healthy
+
+  # PhpMyAdmin untuk manajemen MySQL
+  phpmyadmin:
+    image: phpmyadmin:latest
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      # Menggunakan variabel yang sama dengan service mysql
+      PMA_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports:
+      - '8081:80'
+    networks:
+      - shared-network
+    depends_on:
+      mysql:
+        # Menunggu sampai layanan 'mysql' statusnya 'healthy'
+        condition: service_healthy
+
+# Definisi volumes untuk persistensi data
+volumes:
+  mysql_data:
+  postgres_data:
+  redis_data:
+  pgadmin_data:
+
+# Definisi network bersama untuk semua layanan
+networks:
+  shared-network:
+    name: shared-infrastructure
+    driver: bridge

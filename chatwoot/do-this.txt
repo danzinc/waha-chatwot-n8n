@@ -1,0 +1,16 @@
+# Create a temporary Ruby script
+cat > /tmp/create_admin.rb << 'EOF'
+account = Account.create!(name: 'indotrax')
+user = User.create!(
+  name: 'Admin User', 
+  email: 'admin@indotrax.com',
+  password: 'Kukubima234!@#',
+  password_confirmation: 'Kukubima234!@#',
+  confirmed_at: Time.current
+)
+AccountUser.create!(account: account, user: user, role: 'administrator')
+puts 'Admin created: admin@indotrax.com / Kukubima234!@#'
+EOF
+
+# Run the script
+docker compose run --rm -v /tmp/create_admin.rb:/tmp/create_admin.rb rails bundle exec rails runner /tmp/create_admin.rb

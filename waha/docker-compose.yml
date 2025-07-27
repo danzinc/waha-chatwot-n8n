@@ -1,0 +1,29 @@
+services:
+  waha:
+    image: devlikeapro/waha
+    restart: unless-stopped
+    environment:
+      WAHA_LOG_LEVEL: info
+      # Database PostgreSQL
+      WAHA_DATABASE_URL: postgresql://waha_user:${WAHA_DB_PASSWORD}@postgres:5432/waha_db
+      # Security
+      WAHA_SECURITY_ENABLED: true
+      WAHA_SECURITY_API_KEY: ${WAHA_API_KEY}
+      # Webhook settings
+      WAHA_WEBHOOK_URL: ${WAHA_WEBHOOK_URL}
+      WAHA_WEBHOOK_EVENTS: message,session.status
+    volumes:
+      - waha_files:/app/files
+      - waha_sessions:/app/.sessions
+    env_file:
+      - .env
+    networks:
+      - shared-infrastructure
+
+volumes:
+  waha_files:
+  waha_sessions:
+
+networks:
+  shared-infrastructure:
+    external: true
